@@ -11,7 +11,8 @@
   "license": "MIT",
   "private": true,
   "scripts": {
-    "start": "babel-node -x \".ts\" ./src/index.ts"
+    "start": "babel-node -x \".ts\" ./src/index.ts",
+    "pretty": "yarn prettier --write ."
   },
   "dependencies": {
     "@babel/core": "^7.20.5",
