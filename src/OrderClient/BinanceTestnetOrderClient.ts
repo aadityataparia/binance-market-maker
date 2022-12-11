@@ -2,10 +2,9 @@ import { LimitOrderInput, Order, OrderClient } from './OrderClient';
 import axios, { Method } from 'axios';
 import qs from 'query-string';
 import crypto, { sign } from 'node:crypto';
+import { debug } from '../util/debug';
 
-const BASE_URL = 'https://testnet.binance.vision/api';
-const API_KEY = process.env.BINANCE_API_KEY;
-const API_SECRET = process.env.BINANCE_API_SECRET;
+const BASE_URL = 'https://testnet.binance.vision';
 
 export class BinanceTestnetOrderClient implements OrderClient {
   async createLimitOrder({ symbol, side, limitPrice, quantity }: LimitOrderInput): Promise<Order> {
@@ -18,7 +17,6 @@ export class BinanceTestnetOrderClient implements OrderClient {
       quantity,
       newOrderRespType: 'RESULT'
     });
-    console.log(data);
 
     return {
       orderId: data.orderId
@@ -26,31 +24,50 @@ export class BinanceTestnetOrderClient implements OrderClient {
   }
 
   async cancelOrder(symbol: string, orderId: string | number): Promise<Order> {
+    const order = await this.sendRequest('/api/v3/order', 'GET', {
+      symbol,
+      orderId
+    });
+    if (order.status === 'FILLED' || order.status === 'CANCELED') return { orderId };
+
     const data = await this.sendRequest('/api/v3/order', 'DELETE', {
       symbol,
       orderId
     });
-    console.log(data);
 
     return {
       orderId: data.orderId
     };
   }
 
+  async getAllOrders(symbol: string) {
+    return this.sendRequest('/api/v3/allOrders', 'GET', {
+      symbol
+    });
+  }
+
+  async cancelAllOpenOrders(symbol: string) {
+    return this.sendRequest('/api/v3/openOrders', 'DELETE', {
+      symbol
+    });
+  }
+
   async sendRequest(url: string, method: Method, params: Record<string, any>): Promise<any> {
+    const { BINANCE_API_KEY, BINANCE_API_SECRET } = process.env;
+
     params.timestamp = Date.now();
     params.recvWindow = 60000;
 
     let query = qs.stringify(params);
     const headers = {
-      'X-MBX-APIKEY': API_KEY
+      'X-MBX-APIKEY': BINANCE_API_KEY
     };
 
-    const signature = crypto.createHmac('sha256', API_SECRET).update(query).digest('hex');
+    const signature = crypto.createHmac('sha256', BINANCE_API_SECRET).update(query).digest('hex');
     query += `&signature=${signature}`;
 
     let body = undefined;
-    if (method.toLowerCase() === 'GET' || method.toLowerCase() === 'DELETE') {
+    if (method.toLowerCase() === 'get' || method.toLowerCase() === 'delete') {
       url += '?' + query;
     } else {
       body = query;
