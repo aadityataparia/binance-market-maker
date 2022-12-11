@@ -1,11 +1,9 @@
 import * as dotenv from 'dotenv';
-import { LiquidityProvider } from './LiquidityProvider';
 dotenv.config();
 /** Setup dotenv before importing any other file */
 
+import { LiquidityProvider } from './LiquidityProvider';
 import { BinanceTestnetOrderClient } from './OrderClient/BinanceTestnetOrderClient';
-import { OrderSide } from './OrderClient/OrderClient';
-
 import { BinancePriceProvider } from './PriceProvider';
 
 (async () => {
@@ -17,7 +15,7 @@ import { BinancePriceProvider } from './PriceProvider';
   const priceProvider = new BinancePriceProvider(symbol);
   const orderClient = new BinanceTestnetOrderClient();
 
-  await orderClient.cancelAllOpenOrders(symbol);
+  await orderClient.cancelAllOpenOrders(symbol).catch(() => {});
 
   const liquidityProvider = new LiquidityProvider({
     symbol,
@@ -28,4 +26,8 @@ import { BinancePriceProvider } from './PriceProvider';
   });
 
   await liquidityProvider.start();
+
+  process.on('SIGINT', async () => {
+    await liquidityProvider.stop();
+  });
 })();

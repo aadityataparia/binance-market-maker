@@ -108,10 +108,11 @@ export class LiquidityProvider {
       ? this.orderClient.cancelOrder(this.symbol, this._sellOrder.orderId)
       : Promise.resolve();
 
+    await Promise.all([cancelBuy, cancelSell]);
+
     this._buyOrder = null;
     this._sellOrder = null;
 
-    await Promise.all([cancelBuy, cancelSell]);
     log('Cancelled Buy and Sell orders');
   }
 }
