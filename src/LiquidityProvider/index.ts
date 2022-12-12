@@ -17,25 +17,29 @@ export class LiquidityProvider {
   _buyOrder: OrderDetails | null = null;
   _sellOrder: OrderDetails | null = null;
   _inProgress: boolean = false;
+  retryCancelOrders: number;
 
   constructor({
     symbol,
     priceProvider,
     orderClient,
     priceGap,
-    quantity
+    quantity,
+    retryCancelOrders
   }: {
     symbol: string;
     priceProvider: PriceProvider;
     orderClient: OrderClient;
     priceGap: number;
     quantity: number;
+    retryCancelOrders?: number;
   }) {
     this.symbol = symbol;
     this.priceProvider = priceProvider;
     this.orderClient = orderClient;
     this.priceGap = priceGap;
     this.quantity = quantity;
+    this.retryCancelOrders = retryCancelOrders || 3;
 
     this.priceProvider.addListener(this.provide.bind(this));
   }
@@ -111,7 +115,7 @@ export class LiquidityProvider {
     this._sellOrder = { orderId: sO.orderId, price: sellOrder.limitPrice };
   }
 
-  async cancelOrders(retry: number = 3) {
+  async cancelOrders(retry: number = this.retryCancelOrders) {
     try {
       const cancelBuy = this._buyOrder
         ? this.orderClient.cancelOrder(this.symbol, this._buyOrder.orderId)
