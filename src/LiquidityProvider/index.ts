@@ -1,4 +1,4 @@
-import { LimitOrderInput, OrderClient, OrderSide } from '../OrderClient/OrderClient';
+import { LimitOrderInput, Order, OrderClient, OrderSide } from '../OrderClient/OrderClient';
 import { PriceProvider } from '../PriceProvider';
 import { debug, log } from '../util/debug';
 
@@ -55,11 +55,11 @@ export class LiquidityProvider {
     this._inProgress = true;
 
     if (!this._buyOrder) {
-      log('Placing initial orders');
+      log('Creating initial orders');
 
       await this.placeOrders(price);
     } else if (price <= this._buyOrder.price || price >= this._sellOrder.price) {
-      log('Previous order filled at', price, 'Recreating new orders');
+      log('Previous order filled at', price, 'Creating new orders');
 
       await this.cancelOrders();
       await this.placeOrders(price);
@@ -82,10 +82,26 @@ export class LiquidityProvider {
       quantity: this.quantity
     };
 
-    const [bO, sO] = await Promise.all([
-      this.orderClient.createLimitOrder(buyOrder),
-      this.orderClient.createLimitOrder(sellOrder)
-    ]);
+    let bO: Order, sO: Order;
+    try {
+      [bO, sO] = await Promise.all([
+        this.orderClient.createLimitOrder(buyOrder),
+        this.orderClient.createLimitOrder(sellOrder)
+      ]);
+    } catch (e) {
+      console.error(
+        'Error in creating orders, cancelling any order that were created. Will retry on next calculation.',
+        e
+      );
+      if (bO) {
+        await this.orderClient.cancelOrder(this.symbol, bO.orderId);
+      }
+      if (sO) {
+        await this.orderClient.cancelOrder(this.symbol, sO.orderId);
+      }
+      return;
+    }
+
     log('Created Buy Order at', buyOrder.limitPrice);
     debug(bO);
     log('Created Sell Order at', sellOrder.limitPrice);
@@ -93,26 +109,31 @@ export class LiquidityProvider {
 
     this._buyOrder = { orderId: bO.orderId, price: buyOrder.limitPrice };
     this._sellOrder = { orderId: sO.orderId, price: sellOrder.limitPrice };
-
-    return {
-      buyOrder,
-      sellOrder
-    };
   }
 
-  async cancelOrders() {
-    const cancelBuy = this._buyOrder
-      ? this.orderClient.cancelOrder(this.symbol, this._buyOrder.orderId)
-      : Promise.resolve();
-    const cancelSell = this._sellOrder
-      ? this.orderClient.cancelOrder(this.symbol, this._sellOrder.orderId)
-      : Promise.resolve();
+  async cancelOrders(retry: number = 3) {
+    try {
+      const cancelBuy = this._buyOrder
+        ? this.orderClient.cancelOrder(this.symbol, this._buyOrder.orderId)
+        : Promise.resolve();
+      const cancelSell = this._sellOrder
+        ? this.orderClient.cancelOrder(this.symbol, this._sellOrder.orderId)
+        : Promise.resolve();
 
-    await Promise.all([cancelBuy, cancelSell]);
+      await Promise.all([cancelBuy, cancelSell]);
+    } catch (e) {
+      console.error('Failed to cancel orders', e);
+      if (retry >= 1) {
+        log('Retrying cancelling orders');
+        await this.cancelOrders(retry - 1);
+      } else {
+        throw e;
+      }
+    }
 
     this._buyOrder = null;
     this._sellOrder = null;
 
-    log('Cancelled Buy and Sell orders');
+    log('Cancelled Previous Orders');
   }
 }
