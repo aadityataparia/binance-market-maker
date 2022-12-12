@@ -13,11 +13,11 @@ export class LiquidityProvider {
   orderClient: OrderClient;
   priceGap: number;
   quantity: number;
+  retryCancelOrders: number;
 
   _buyOrder: OrderDetails | null = null;
   _sellOrder: OrderDetails | null = null;
   _inProgress: boolean = false;
-  retryCancelOrders: number;
 
   constructor({
     symbol,
